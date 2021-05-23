@@ -22,16 +22,14 @@ public class Test {
 			});
 			
 			cdt.insertVertices(points);
-			
+			cdt.insertEdges(edges);
+			cdt.eraseSuperTriangle();
+
 			for(IndexTriangle t : cdt.triangles) {
 				System.out.println(t);
 			}
 			
-			cdt.insertEdges(edges);
-			
-			cdt.eraseSuperTriangle();
 			V2d[][] triangles = cdt.getTriangles();
-			
 			for(V2d[] t : triangles) {
 				System.out.println("[" + t[0] + ", " + t[1] + ", " + t[2] + "]");
 			}

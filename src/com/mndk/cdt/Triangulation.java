@@ -133,7 +133,7 @@ public class Triangulation {
 	 */
 	public void insertEdges(List<IndexEdge> edges) {
 		for(IndexEdge edge : edges) {
-			insertEdge(new IndexEdge(edge.v1 + 3, edge.v2 + 3));
+			insertEdge(new IndexEdge(edge.v1 + nTargetVerts, edge.v2 + nTargetVerts));
 		}
 		eraseDummies();
 	}
@@ -254,31 +254,11 @@ public class Triangulation {
 	
 	
 	private void insertVertex(V2d pos) {
-		
-		
-		System.out.println();
-		System.out.println();
-		System.out.println();
-		
-		
 		int iVert = vertices.size();
 		int[] trisAt = walkingSearchTrianglesAt(pos);
 		Stack<Integer> triStack = 
 				trisAt[1] == NO_NEIGHBOR ? insertPointInTriangle(pos, trisAt[0])
 						                 : insertPointOnEdge(pos, trisAt[0], trisAt[1]);
-		System.out.println("triStack = " + triStack + ", vertex index = " + iVert + ", pos = " + pos);
-		System.out.println("Triangles: [");
-		for(IndexTriangle t : triangles) {
-			System.out.println("  " + t);
-		}
-		System.out.println("]");
-		System.out.println("Vertices: [");
-		for(Vertex v : vertices) {
-			System.out.println("  " + v);
-		}
-		System.out.println("]");
-		
-		
 		
 		while(!triStack.isEmpty()) {
 			
@@ -292,16 +272,12 @@ public class Triangulation {
 			}
 			
 			boolean flipNeeded = isFlipNeeded(pos, iT, iTopo, iVert);
-			System.out.println("isFlipNeeded(pos=" + pos + ", iT=" + iT + ", iTopo=" + iTopo + ", iVert=" + iVert + ") = " + flipNeeded);
 			if(flipNeeded) {
 				flipEdge(iT, iTopo);
 				triStack.push(iT);
 				triStack.push(iTopo);
 			}
-			
-			System.out.println(triStack);
-		}
-						
+		}				
 	}
 	
 	
@@ -311,7 +287,8 @@ public class Triangulation {
 		if(iA == iB) { // edge connects a vertex to itself
 			return;
 		}
-		Vertex a = vertices.get(iA), b = vertices.get(iB);
+		Vertex a = vertices.get(iA);
+		Vertex b = vertices.get(iB);
 		if(CDTUtils.verticesShareEdge(a, b)) {
 			fixedEdges.add(new IndexEdge(iA, iB));
 			return;
@@ -430,7 +407,6 @@ public class Triangulation {
 	 * @return Indices of three resulting triangles
 	 */
 	private Stack<Integer> insertPointInTriangle(V2d pos, int iT) {
-		System.out.println("Get stack: insertPointInTriangle");
 		int v = vertices.size();
 		int iNewT1 = addTriangle();
 		int iNewT2 = addTriangle();
@@ -485,7 +461,6 @@ public class Triangulation {
 	 * @return Indices of four resulting triangles
 	 */
 	private Stack<Integer> insertPointOnEdge(V2d pos, int iT1, int iT2) {
-		System.out.println("Get stack: insertPointOnEdge");
 		int v = vertices.size();
 		int iTnew1 = addTriangle();
 		int iTnew2 = addTriangle();
@@ -665,7 +640,6 @@ public class Triangulation {
 		V2d v1 = vertices.get(iVcw).pos;
 		V2d v2 = vertices.get(iVopo).pos;
 		V2d v3 = vertices.get(iVccw).pos;
-		System.out.printf("   %d %d %d %d\n", i, iVopo, iVcw, iVccw);
 		if(superGeomType == SuperGeometryType.SUPER_TRIANGLE) {
 			if(iVcw < 3) {
 				return CDTUtils.locatePointLine(v1, v2, v3) == CDTUtils.locatePointLine(pos, v2, v3);
@@ -784,7 +758,7 @@ public class Triangulation {
 		@SuppressWarnings("unchecked")
 		List<Integer>[] out = new List[] {new ArrayList<Integer>(), new ArrayList<Integer>()};
 		int i = 0;
-		for(; i != vi; ++i) {
+		for(; vi != points.get(i); ++i) {
 			out[0].add(points.get(i));
 		}
 		for(++i; i < points.size(); ++i) {
