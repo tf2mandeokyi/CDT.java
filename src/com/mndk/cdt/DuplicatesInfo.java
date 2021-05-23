@@ -47,9 +47,7 @@ public class DuplicatesInfo {
 	 * @param vertices Vertices to remove duplicates from
 	 * @param duplicates Information about duplicates
 	 */
-	public static void removeDuplicates(List<V2d> vertices, List<Integer> duplicates) {
-		DuplicatesInfo di = Find
-	}
+	public static void removeDuplicates(List<V2d> vertices, List<Integer> duplicates);
 	
 	
 	
@@ -69,7 +67,7 @@ public class DuplicatesInfo {
 	 * @param edges Collection of edges to remap
 	 * @param mapping Vertex-index mapping
 	 */
-	public void remapEdges(List<Edge> edges, List<Integer> mapping);
+	public void remapEdges(List<IndexEdge> edges, List<Integer> mapping);
 	
 	
 	
@@ -79,6 +77,6 @@ public class DuplicatesInfo {
 	 * @param edges Collection of edges to remap
 	 * @return Information about vertex duplicates
 	 */
-	public DuplicatesInfo removeDuplicatesAndRemapEdges(List<V2d> vertices, List<Edge> edges);
+	public DuplicatesInfo removeDuplicatesAndRemapEdges(List<V2d> vertices, List<IndexEdge> edges);
 	
 }

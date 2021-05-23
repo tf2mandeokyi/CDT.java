@@ -1,5 +1,6 @@
 package com.mndk.cdt;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -34,7 +35,7 @@ public class Vertex {
 	 * @return
 	 */
 	public Vertex(final V2d pos, final int iTriangle) {
-		this(pos, Arrays.asList(iTriangle));
+		this(pos, new ArrayList<>(Arrays.asList(iTriangle)));
 	}
 	
 	/**
@@ -46,7 +47,7 @@ public class Vertex {
 	 * @return
 	 */
 	public Vertex(final V2d pos, final int iT1, final int iT2, final int iT3) {
-		this(pos, Arrays.asList(iT1, iT2, iT3));
+		this(pos, new ArrayList<>(Arrays.asList(iT1, iT2, iT3)));
 	}
 
 	/**
@@ -59,6 +60,11 @@ public class Vertex {
 	 * @return
 	 */
 	public Vertex(final V2d pos, final int iT1, final int iT2, final int iT3, final int iT4) {
-		this(pos, Arrays.asList(iT1, iT2, iT3, iT4));
+		this(pos, new ArrayList<>(Arrays.asList(iT1, iT2, iT3, iT4)));
+	}
+	
+	@Override
+	public String toString() {
+		return "Vertex{p=" + pos + ", t=" + triangles + "}";
 	}
 }

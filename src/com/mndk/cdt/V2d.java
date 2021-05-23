@@ -30,4 +30,9 @@ public class V2d {
 		return Math.sqrt(dx * dx + dy * dy);
 	}
 	
+	@Override
+	public String toString() {
+		return "(" + x + ", " + y + ")";
+	}
+	
 }

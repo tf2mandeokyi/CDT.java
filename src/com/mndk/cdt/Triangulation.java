@@ -50,12 +50,12 @@ public class Triangulation {
 	/**
 	 * Triangulation's vertices
 	 */
-	public List<Triangle> triangles;
+	public List<IndexTriangle> triangles;
 	
 	/**
 	 * Triangulation's constraints
 	 */
-	public Set<Edge> fixedEdges;
+	public Set<IndexEdge> fixedEdges;
 	
 	private List<Integer> dummyTriangles;
 	
@@ -80,6 +80,32 @@ public class Triangulation {
 		this.closestPtMode = closestPtMode;
 		this.nTargetVerts = 0;
 		this.superGeomType = SuperGeometryType.SUPER_TRIANGLE;
+		
+		this.vertices = new ArrayList<>();
+		this.triangles = new ArrayList<>();
+		this.dummyTriangles = new ArrayList<>();
+		this.fixedEdges = new HashSet<>();
+	}
+	
+	
+	
+	
+	/**
+	 * Constructor
+	 * @param closestPtMode
+	 */
+	public Triangulation(FindingClosestPoint closestPtMode) {
+		this(closestPtMode, 10);
+	}
+	
+	
+	
+	
+	/**
+	 * Constructor
+	 */
+	public Triangulation() {
+		this(FindingClosestPoint.CLOSEST_RANDOM, 10);
 	}
 	
 	
@@ -90,11 +116,11 @@ public class Triangulation {
 	 * Insert vertices into triangulation
 	 * @param vertices
 	 */
-	public void insertVertices(List<V2d> vertices) {
+	public void insertVertices(List<V2d> vertices_) {
 		if(vertices.isEmpty()) {
-			addSuperTriangle(Box2d.envelope(vertices));
+			addSuperTriangle(Box2d.envelope(vertices_));
 		}
-		for(V2d vertex : vertices) {
+		for(V2d vertex : vertices_) {
 			insertVertex(vertex);
 		}
 	}
@@ -105,9 +131,9 @@ public class Triangulation {
 	 * Insert constraints (fixed edges) into triangulation
 	 * @param edges
 	 */
-	public void insertEdges(List<Edge> edges) {
-		for(Edge edge : edges) {
-			insertEdge(new Edge(edge.v1 + 3, edge.v2 + 3));
+	public void insertEdges(List<IndexEdge> edges) {
+		for(IndexEdge edge : edges) {
+			insertEdge(new IndexEdge(edge.v1 + 3, edge.v2 + 3));
 		}
 		eraseDummies();
 	}
@@ -182,6 +208,25 @@ public class Triangulation {
 	
 	
 	
+	/**
+	 * Combines index triangles and points into V2d arrays.
+	 * @return
+	 */
+	public V2d[][] getTriangles() {
+		V2d[][] result = new V2d[triangles.size()][];
+		for(int i = 0; i < triangles.size(); ++i) {
+			IndexTriangle it = triangles.get(i);
+			result[i] = new V2d[] {
+					vertices.get(it.vertices.e1).pos,
+					vertices.get(it.vertices.e2).pos,
+					vertices.get(it.vertices.e3).pos
+			};
+		}
+		return result;
+	}
+	
+	
+	
 	private void addSuperTriangle(Box2d box) {
 		nTargetVerts = 3;
 		superGeomType = SuperGeometryType.SUPER_TRIANGLE;
@@ -189,55 +234,86 @@ public class Triangulation {
 		V2d center = new V2d((box.min.x + box.max.x) / 2, (box.min.y + box.max.y) / 2);
 		double w = box.max.x - box.min.x;
 		double h = box.max.y - box.min.y;
-		double r = Math.sqrt(w * w + h * h) / 2;
+		double r = Math.sqrt(w * w + h * h) / 2; // incircle radius
 		r *= 1.1;
-		double R = 2 * r;
-		double shiftX = R * ROOT_3 / 2;
+		double R = 2 * r;                        // excircle radius
+		double shiftX = R * ROOT_3 / 2;          // R * cos(30 deg)
 		V2d posV1 = new V2d(center.x - shiftX, center.y - r);
 		V2d posV2 = new V2d(center.x + shiftX, center.y - r);
 		V2d posV3 = new V2d(center.x, center.y + R);
 		vertices.add(new Vertex(posV1, 0));
 		vertices.add(new Vertex(posV2, 0));
 		vertices.add(new Vertex(posV3, 0));
-		Triangle superTri = new Triangle(new Array3<>(0, 1, 2), new Array3<>(NO_NEIGHBOR, NO_NEIGHBOR, NO_NEIGHBOR));
+		IndexTriangle superTri = new IndexTriangle(
+				new Array3<>(0, 1, 2), 
+				new Array3<>(NO_NEIGHBOR, NO_NEIGHBOR, NO_NEIGHBOR)
+		);
 		addTriangle(superTri);
 	}
 	
 	
 	
 	private void insertVertex(V2d pos) {
+		
+		
+		System.out.println();
+		System.out.println();
+		System.out.println();
+		
+		
 		int iVert = vertices.size();
 		int[] trisAt = walkingSearchTrianglesAt(pos);
 		Stack<Integer> triStack = 
 				trisAt[1] == NO_NEIGHBOR ? insertPointInTriangle(pos, trisAt[0])
 						                 : insertPointOnEdge(pos, trisAt[0], trisAt[1]);
+		System.out.println("triStack = " + triStack + ", vertex index = " + iVert + ", pos = " + pos);
+		System.out.println("Triangles: [");
+		for(IndexTriangle t : triangles) {
+			System.out.println("  " + t);
+		}
+		System.out.println("]");
+		System.out.println("Vertices: [");
+		for(Vertex v : vertices) {
+			System.out.println("  " + v);
+		}
+		System.out.println("]");
+		
+		
+		
 		while(!triStack.isEmpty()) {
+			
 			int iT = triStack.pop();
 			
-			Triangle t = triangles.get(iT);
+			IndexTriangle t = triangles.get(iT);
+			
 			int iTopo = CDTUtils.opposedTriangle(t, iVert);
 			if(iTopo == NO_NEIGHBOR) {
 				continue;
 			}
-			if(isFlipNeeded(pos, iT, iTopo, iVert)) {
+			
+			boolean flipNeeded = isFlipNeeded(pos, iT, iTopo, iVert);
+			System.out.println("isFlipNeeded(pos=" + pos + ", iT=" + iT + ", iTopo=" + iTopo + ", iVert=" + iVert + ") = " + flipNeeded);
+			if(flipNeeded) {
 				flipEdge(iT, iTopo);
 				triStack.push(iT);
 				triStack.push(iTopo);
 			}
+			
+			System.out.println(triStack);
 		}
 						
 	}
 	
 	
 	
-	private void insertEdge(Edge edge) {
+	private void insertEdge(IndexEdge edge) {
 		int iA = edge.v1, iB = edge.v2;
 		if(iA == iB) { // edge connects a vertex to itself
 			return;
 		}
 		Vertex a = vertices.get(iA), b = vertices.get(iB);
 		if(CDTUtils.verticesShareEdge(a, b)) {
-			fixedEdges.add(new Edge(iA, iB));
+			fixedEdges.add(new IndexEdge(iA, iB));
 			return;
 		}
 		int[] intrsctdTrnglArr = intersectedTriangle(iA, a.triangles, a.pos, b.pos);
@@ -246,25 +322,26 @@ public class Triangulation {
 		
 		//if one of the triangle vertices is on the edge, move edge start
 		if(iT == NO_NEIGHBOR) {
-			fixedEdges.add(new Edge(iA, iVleft));
-			insertEdge(new Edge(iVleft, iB));
+			fixedEdges.add(new IndexEdge(iA, iVleft));
+			insertEdge(new IndexEdge(iVleft, iB));
 			return;
 		}
-		List<Integer> intersected = Arrays.asList(iT);
-		List<Integer> ptsLeft = Arrays.asList(iVleft);
-		List<Integer> ptsRight = Arrays.asList(iVright);
+		List<Integer> intersected = new ArrayList<>(Arrays.asList(iT));
+		List<Integer> ptsLeft = new ArrayList<>(Arrays.asList(iVleft));
+		List<Integer> ptsRight = new ArrayList<>(Arrays.asList(iVright));
 		int iV = iA;
-		Triangle t = triangles.get(iT);
+		IndexTriangle t = triangles.get(iT);
 		Array3<Integer> tverts = t.vertices;
 		while(!tverts.contains(iB)) {
 			int iTopo = CDTUtils.opposedTriangle(t, iV);
-			Triangle tOpo = triangles.get(iTopo);
+			IndexTriangle tOpo = triangles.get(iTopo);
 			int iVopo = CDTUtils.opposedVertex(tOpo, iT);
 			Vertex vOpo = vertices.get(iVopo);
 			
 			intersected.add(iTopo);
 			iT = iTopo;
 			t = triangles.get(iT);
+			tverts = t.vertices;
 			
 			PtLineLocation loc = CDTUtils.locatePointLine(vOpo.pos, a.pos, b.pos);
 			
@@ -293,9 +370,9 @@ public class Triangulation {
 		changeNeighbor(iTleft, NO_NEIGHBOR, iTright);
 		changeNeighbor(iTright, NO_NEIGHBOR, iTleft);
 		// add fixed edge
-		fixedEdges.add(new Edge(iA, iB));
+		fixedEdges.add(new IndexEdge(iA, iB));
 		if(iB != edge.v2) {
-			insertEdge(new Edge(iB, edge.v2));
+			insertEdge(new IndexEdge(iB, edge.v2));
 			return;
 		}
 	}
@@ -307,11 +384,11 @@ public class Triangulation {
 	 * @param candidates 
 	 * @param a 
 	 * @param b 
-	 * @return [Triangle index, Vertex index, Vertex index]
+	 * @return [IndexTriangle index, Vertex index, Vertex index]
 	 */
 	private int[] intersectedTriangle(int iA, List<Integer> candidates, V2d a, V2d b) {
 		for(int iT : candidates) {
-			Triangle t = triangles.get(iT);
+			IndexTriangle t = triangles.get(iT);
 			int i = CDTUtils.vertexIndex(t, iA);
 			int iP1 = t.vertices.get(CDTUtils.cw(i));
 			int iP2 = t.vertices.get(CDTUtils.ccw(i));
@@ -349,23 +426,24 @@ public class Triangulation {
 	 *          v1 ___________________ v2
 	 *                     n1
 	 * @param pos
-	 * @param iT Triangle index
+	 * @param iT IndexTriangle index
 	 * @return Indices of three resulting triangles
 	 */
 	private Stack<Integer> insertPointInTriangle(V2d pos, int iT) {
+		System.out.println("Get stack: insertPointInTriangle");
 		int v = vertices.size();
 		int iNewT1 = addTriangle();
 		int iNewT2 = addTriangle();
 		
-		Triangle t = triangles.get(iT);
+		IndexTriangle t = triangles.get(iT);
 		Array3<Integer> vv = t.vertices;
 		Array3<Integer> nn = t.neighbors;
 		int v1 = vv.e1, v2 = vv.e2, v3 = vv.e3;
 		int n1 = nn.e1, n2 = nn.e2, n3 = nn.e3;
 		// make two new triangles and convert current triangle to 3rd new triangle
-		triangles.set(iNewT1, new Triangle(new Array3<>(v2, v3, v), new Array3<>(n2, iNewT2, iT)));
-		triangles.set(iNewT2, new Triangle(new Array3<>(v3, v1, v), new Array3<>(n3, iT, iNewT1)));
-		t = new Triangle(new Array3<>(v1, v2, v), new Array3<>(n1, iNewT1, iNewT2));
+		triangles.set(iNewT1, new IndexTriangle(new Array3<>(v2, v3, v), new Array3<>(n2, iNewT2, iT)));
+		triangles.set(iNewT2, new IndexTriangle(new Array3<>(v3, v1, v), new Array3<>(n3, iT, iNewT1)));
+		triangles.set(iT, t = new IndexTriangle(new Array3<>(v1, v2, v), new Array3<>(n1, iNewT1, iNewT2)));
 		// make and add a new vertex
 		vertices.add(new Vertex(pos, iT, iNewT1, iNewT2));
 		// adjust lists of adjacent triangles for v1, v2, v3
@@ -402,17 +480,18 @@ public class Triangulation {
 	 *   T2 (bottom)      v3
 	 *
 	 * @param pos
-	 * @param iT1 Triangle index #1
-	 * @param iT2 Triangle index #2
+	 * @param iT1 IndexTriangle index #1
+	 * @param iT2 IndexTriangle index #2
 	 * @return Indices of four resulting triangles
 	 */
 	private Stack<Integer> insertPointOnEdge(V2d pos, int iT1, int iT2) {
+		System.out.println("Get stack: insertPointOnEdge");
 		int v = vertices.size();
 		int iTnew1 = addTriangle();
 		int iTnew2 = addTriangle();
 		
-		Triangle t1 = triangles.get(iT1);
-		Triangle t2 = triangles.get(iT2);
+		IndexTriangle t1 = triangles.get(iT1);
+		IndexTriangle t2 = triangles.get(iT2);
 		int i = CDTUtils.opposedVertexIndex(t1, iT2);
 		int v1 = t1.vertices.get(i);
 		int v2 = t1.vertices.get(CDTUtils.ccw(i));
@@ -424,10 +503,10 @@ public class Triangulation {
 		int n3 = t2.neighbors.get(i);
 		int n2 = t2.neighbors.get(CDTUtils.cw(i));
 		// add new triangles and change existing ones
-		t1 = new Triangle(new Array3<>(v1, v2, v), new Array3<>(n1, iTnew2, iTnew1));
-		t2 = new Triangle(new Array3<>(v3, v4, v), new Array3<>(n3, iTnew1, iTnew2));
-		triangles.set(iTnew1, new Triangle(new Array3<>(v1, v, v4), new Array3<>(iT1, iT2, n4)));
-		triangles.set(iTnew2, new Triangle(new Array3<>(v3, v, v2), new Array3<>(iT2, iT1, n2)));
+		triangles.set(iT1, t1 = new IndexTriangle(new Array3<>(v1, v2, v), new Array3<>(n1, iTnew2, iTnew1)));
+		triangles.set(iT2, t2 = new IndexTriangle(new Array3<>(v3, v4, v), new Array3<>(n3, iTnew1, iTnew2)));
+		triangles.set(iTnew1, new IndexTriangle(new Array3<>(v1, v, v4), new Array3<>(iT1, iT2, n4)));
+		triangles.set(iTnew2, new IndexTriangle(new Array3<>(v3, v, v2), new Array3<>(iT2, iT1, n2)));
 		// make and add new vertex
 		vertices.add(new Vertex(pos, iT1, iTnew2, iT2, iTnew1));
 		// adjust neighboring triangles and vertices
@@ -452,12 +531,12 @@ public class Triangulation {
 	
 	/**
 	 * @param pos
-	 * @return [Triangle index, Triangle index]
+	 * @return [IndexTriangle index, IndexTriangle index]
 	 */
 	private int[] trianglesAt(V2d pos) {
 		int[] out = {NO_NEIGHBOR, NO_NEIGHBOR};
 	    for(int i = 0; i < triangles.size(); ++i) {
-	        Triangle t = triangles.get(i);
+	        IndexTriangle t = triangles.get(i);
 	        V2d v1 = vertices.get(t.vertices.e1).pos;
 	        V2d v2 = vertices.get(t.vertices.e2).pos;
 	        V2d v3 = vertices.get(t.vertices.e3).pos;
@@ -478,7 +557,7 @@ public class Triangulation {
 	
 	/**
 	 * @param pos
-	 * @return [Triangle index, Triangle index]
+	 * @return [IndexTriangle index, IndexTriangle index]
 	 */
 	private int[] walkingSearchTrianglesAt(V2d pos) {
 		int[] out = {NO_NEIGHBOR, NO_NEIGHBOR};
@@ -486,7 +565,7 @@ public class Triangulation {
 	    int startVertex = nearestVertexRand(pos, nRandomSamples);
 	    int iT = walkTriangles(startVertex, pos);
 	    // Finished walk, locate point in current triangle
-	    Triangle t = triangles.get(iT);
+	    IndexTriangle t = triangles.get(iT);
 	    V2d v1 = vertices.get(t.vertices.e1).pos;
 	    V2d v2 = vertices.get(t.vertices.e2).pos;
 	    V2d v3 = vertices.get(t.vertices.e3).pos;
@@ -506,7 +585,7 @@ public class Triangulation {
 	/**
 	 * @param startVertex
 	 * @param pos
-	 * @return Triangle index
+	 * @return IndexTriangle index
 	 */
 	private int walkTriangles(int startVertex, V2d pos) {
 		// begin walk in search of triangle at pos
@@ -514,10 +593,10 @@ public class Triangulation {
 	    Set<Integer> visited = new HashSet<>();
 	    boolean found = false;
 	    while(!found) {
-	        Triangle t = triangles.get(currTri);
+	        IndexTriangle t = triangles.get(currTri);
 	        found = true;
 	        // stochastic offset to randomize which edge we check first
-	        int offset = RANDOM.nextInt() % 3;
+	        int offset = Math.abs(RANDOM.nextInt()) % 3;
 	        for(int i_ = 0; i_ < 3; ++i_) {
 	            int i = (i_ + offset) % 3;
 	            V2d vStart = vertices.get(t.vertices.get(i)).pos;
@@ -544,10 +623,10 @@ public class Triangulation {
 	 */
 	private int nearestVertexRand(V2d pos, int nSamples) {
 		// start search at a vertex close to pos based on random sampling
-	    int out = RANDOM.nextInt() % vertices.size();
+	    int out = Math.abs(RANDOM.nextInt()) % vertices.size();
 	    double minDist = V2d.distance(vertices.get(out).pos, pos);
 	    for(int iSample = 0; iSample < nSamples; ++iSample) {
-	        int candidate = RANDOM.nextInt() % vertices.size();
+	        int candidate = Math.abs(RANDOM.nextInt()) % vertices.size();
 	        double candidateDist = V2d.distance(vertices.get(candidate).pos, pos);
 	        if(candidateDist < minDist) {
 	            minDist = candidateDist;
@@ -567,18 +646,18 @@ public class Triangulation {
 	 * Handles super-triangle vertices.<br>
 	 * Super-tri points are not infinitely far and influence the input points
 	 * @param pos
-	 * @param iT Triangle index
+	 * @param iT IndexTriangle index
 	 * @param iTopo Opposed triangle index
 	 * @param iVert Vertex index
 	 * @return
 	 */
 	private boolean isFlipNeeded(V2d pos, int iT, int iTopo, int iVert) {
-		Triangle tOpo = triangles.get(iTopo);
+		IndexTriangle tOpo = triangles.get(iTopo);
 		int i = CDTUtils.opposedVertexIndex(tOpo, iT);
 		int iVopo = tOpo.vertices.get(i);
 		if(superGeomType == SuperGeometryType.SUPER_TRIANGLE) {
-			if(iVert < 3 && iVopo < 3) {
-				return false;
+			if(iVert < 3 && iVopo < 3) { // opposed vertices belong to super-triangle
+				return false;            // no flip is needed
 			}
 		}
 		int iVcw = tOpo.vertices.get(CDTUtils.cw(i));
@@ -586,6 +665,7 @@ public class Triangulation {
 		V2d v1 = vertices.get(iVcw).pos;
 		V2d v2 = vertices.get(iVopo).pos;
 		V2d v3 = vertices.get(iVccw).pos;
+		System.out.printf("   %d %d %d %d\n", i, iVopo, iVcw, iVccw);
 		if(superGeomType == SuperGeometryType.SUPER_TRIANGLE) {
 			if(iVcw < 3) {
 				return CDTUtils.locatePointLine(v1, v2, v3) == CDTUtils.locatePointLine(pos, v2, v3);
@@ -616,12 +696,12 @@ public class Triangulation {
 	 *               \|/
 	 *                v2
 	 *
-	 * @param iT Triangle index
+	 * @param iT IndexTriangle index
 	 * @param iTopo Opposed triangle index
 	 */
 	private void flipEdge(int iT, int iTopo) {
-		Triangle t = triangles.get(iT);
-	    Triangle tOpo = triangles.get(iTopo);
+		IndexTriangle t = triangles.get(iT);
+	    IndexTriangle tOpo = triangles.get(iTopo);
 	    Array3<Integer> triNs = t.neighbors;
 	    Array3<Integer> triOpoNs = tOpo.neighbors;
 	    Array3<Integer> triVs = t.vertices;
@@ -638,8 +718,8 @@ public class Triangulation {
 	    int n4 = triOpoNs.get(i);
 	    int n2 = triOpoNs.get(CDTUtils.cw(i));
 	    // change vertices and neighbors
-	    t = new Triangle(new Array3<>(v4, v1, v3), new Array3<>(n3, iTopo, n4));
-	    tOpo = new Triangle(new Array3<>(v2, v3, v1), new Array3<>(n2, iT, n1));
+	    triangles.set(iT, t = new IndexTriangle(new Array3<>(v4, v1, v3), new Array3<>(n3, iTopo, n4)));
+	    triangles.set(iTopo, tOpo = new IndexTriangle(new Array3<>(v2, v3, v1), new Array3<>(n2, iT, n1)));
 	    // adjust neighboring triangles and vertices
 	    changeNeighbor(n1, iT, iTopo);
 	    changeNeighbor(n4, iTopo, iT);
@@ -652,7 +732,7 @@ public class Triangulation {
 	
 	
 	/**
-	 * @param iT Triangle index
+	 * @param iT IndexTriangle index
 	 * @param oldNeighbor Old neighbor index
 	 * @param newNeighbor New neighbor index
 	 */
@@ -660,29 +740,28 @@ public class Triangulation {
 		if(iT == NO_NEIGHBOR) {
 	        return;
 		}
-	    Triangle t = triangles.get(iT);
+	    IndexTriangle t = triangles.get(iT);
 	    t.neighbors.set(CDTUtils.neighborIndex(t, oldNeighbor), newNeighbor);
 	}
 	
 	
 	
 	/**
-	 * @param iT Triangle index
+	 * @param iT IndexTriangle index
 	 * @param iVedge1
 	 * @param iVedge2
 	 * @param newNeighbor New neighbor index
 	 */
 	private void changeNeighbor(int iT, int iVedge1, int iVedge2, int newNeighbor) {
-		Triangle t = triangles.get(iT);
-		int index = CDTUtils.opposedTriangleIndex(t, iVedge1, iVedge2);
-		t.neighbors.set(index, newNeighbor);
+		IndexTriangle t = triangles.get(iT);
+		t.neighbors.set(CDTUtils.opposedTriangleIndex(t, iVedge1, iVedge2), newNeighbor);
 	}
 	
 	
 	
 	/**
 	 * @param iVertex Vertex index
-	 * @param iTriangle Triangle index
+	 * @param iTriangle IndexTriangle index
 	 */
 	private void addAdjacentTriangle(int iVertex, int iTriangle) {
 		vertices.get(iVertex).triangles.add(iTriangle);
@@ -692,7 +771,7 @@ public class Triangulation {
 	
 	/**
 	 * @param iVertex Vertex index
-	 * @param iTriangle Triangle index
+	 * @param iTriangle IndexTriangle index
 	 */
 	private void removeAdjacentTriangle(int iVertex, int iTriangle) {
 		List<Integer> tris = vertices.get(iVertex).triangles;
@@ -720,7 +799,7 @@ public class Triangulation {
 	 * @param ia Index of vertex a
 	 * @param ib Index of vertex b
 	 * @param points List of vertex index
-	 * @return Triangle index
+	 * @return IndexTriangle index
 	 */
 	private int triangulatePseudopolygon(int ia, int ib, List<Integer> points) {
 		if(points.isEmpty()) {
@@ -732,7 +811,7 @@ public class Triangulation {
 	    int iT2 = triangulatePseudopolygon(ic, ib, splitted[1]);
 	    int iT1 = triangulatePseudopolygon(ia, ic, splitted[0]);
 	    // add new triangle
-	    Triangle t = new Triangle(new Array3<>(ia, ib, ic), new Array3<>(NO_NEIGHBOR, iT2, iT1));
+	    IndexTriangle t = new IndexTriangle(new Array3<>(ia, ib, ic), new Array3<>(NO_NEIGHBOR, iT2, iT1));
 	    int iT = addTriangle(t);
 	    // adjust neighboring triangles and vertices
 	    if(iT1 != NO_NEIGHBOR) {
@@ -788,7 +867,7 @@ public class Triangulation {
 	/**
 	 * @param ia Index of vertex a
 	 * @param ib Index of vertex b
-	 * @return Triangle index
+	 * @return IndexTriangle index
 	 */
 	private int pseudopolyOuterTriangle(int ia, int ib) {
 		List<Integer> aTris = vertices.get(ia).triangles;
@@ -806,9 +885,9 @@ public class Triangulation {
 	
 	/**
 	 * @param t
-	 * @return Triangle index
+	 * @return IndexTriangle index
 	 */
-	private int addTriangle(Triangle t) {
+	private int addTriangle(IndexTriangle t) {
 		if(dummyTriangles.isEmpty()) {
 			triangles.add(t);
 			return triangles.size() - 1;
@@ -821,11 +900,11 @@ public class Triangulation {
 	
 	
 	/**
-	 * @return Triangle index
+	 * @return IndexTriangle index
 	 */
 	private int addTriangle() {
 		if(dummyTriangles.isEmpty()) {
-			Triangle dummy = new Triangle(
+			IndexTriangle dummy = new IndexTriangle(
 					new Array3<>(NO_VERTEX, NO_VERTEX, NO_VERTEX), 
 					new Array3<>(NO_NEIGHBOR, NO_NEIGHBOR, NO_NEIGHBOR));
 			triangles.add(dummy);
@@ -838,10 +917,10 @@ public class Triangulation {
 	
 	
 	/**
-	 * @param iT Triangle index
+	 * @param iT IndexTriangle index
 	 */
 	private void makeDummy(int iT) {
-		Triangle t = triangles.get(iT);
+		IndexTriangle t = triangles.get(iT);
 		
 		removeAdjacentTriangle(t.vertices.e1, iT);
 		removeAdjacentTriangle(t.vertices.e2, iT);
@@ -876,16 +955,16 @@ public class Triangulation {
 		triangles = triangles.subList(0, triangles.size() - dummySet.size());
 		
 		// remap adjacent triangle indices for vertices
-		for(Vertex vertex : vertices) {
-			List<Integer> vertexTriangles = vertex.triangles;
-			for(int i = 0; i < vertexTriangles.size(); i++) {
-				int iT = vertexTriangles.get(i);
-				vertexTriangles.set(i, triIndMap.get(iT));
+		for(Vertex v : vertices) {
+			List<Integer> vTris = v.triangles;
+			for(int i = 0; i < vTris.size(); i++) {
+				int iT = vTris.get(i);
+				vTris.set(i, triIndMap.get(iT));
 			}
 		}
 		
 		// remap neighbor indices for triangles
-		for(Triangle t : triangles) {
+		for(IndexTriangle t : triangles) {
 			t.neighbors.e1 = triIndMap.get(t.neighbors.e1);
 			t.neighbors.e2 = triIndMap.get(t.neighbors.e2);
 			t.neighbors.e3 = triIndMap.get(t.neighbors.e3);
@@ -906,13 +985,13 @@ public class Triangulation {
 			return;
 		}
 		
-		for(Triangle t : triangles) {
+		for(IndexTriangle t : triangles) {
 			t.vertices.e1 -= 3; t.vertices.e2 -= 3; t.vertices.e3 -= 3;
 		}
 		
-		Set<Edge> updatedFixedEdges = new HashSet<>();
-		for(Edge e : fixedEdges) {
-			updatedFixedEdges.add(new Edge(e.v1 - 3, e.v2 - 3));
+		Set<IndexEdge> updatedFixedEdges = new HashSet<>();
+		for(IndexEdge e : fixedEdges) {
+			updatedFixedEdges.add(new IndexEdge(e.v1 - 3, e.v2 - 3));
 		}
 		fixedEdges = updatedFixedEdges;
 		
@@ -932,17 +1011,17 @@ public class Triangulation {
 	
 	/**
 	 * @param seeds List of triangle index
-	 * @return Triangle index set
+	 * @return IndexTriangle index set
 	 */
 	private Set<Integer> growToBoundary(Stack<Integer> seeds) {
 		Set<Integer> traversed = new HashSet<>();
 		while(!seeds.isEmpty()) {
 			int iT = seeds.pop();
 			traversed.add(iT);
-			Triangle t = triangles.get(iT);
+			IndexTriangle t = triangles.get(iT);
 			
 			for(int i = 0; i < 3; ++i) {
-				Edge opEdge = new Edge(t.vertices.get(CDTUtils.ccw(i)), t.vertices.get(CDTUtils.cw(i)));
+				IndexEdge opEdge = new IndexEdge(t.vertices.get(CDTUtils.ccw(i)), t.vertices.get(CDTUtils.cw(i)));
 				if(fixedEdges.contains(opEdge)) {
 					continue;
 				}
@@ -976,12 +1055,12 @@ public class Triangulation {
 	 */
 	public static List<Integer> calculateTriangleDepths(
 			List<Vertex> vertices,
-			List<Triangle> triangles,
-			Set<Edge> fixedEdges
+			List<IndexTriangle> triangles,
+			Set<IndexEdge> fixedEdges
 	) {
 		Integer[] triDepthArray = new Integer[triangles.size()];
 		Arrays.fill(triDepthArray, Integer.MAX_VALUE);
-		List<Integer> triDepths = Arrays.asList(triDepthArray);
+		List<Integer> triDepths = new ArrayList<>(Arrays.asList(triDepthArray));
 		Stack<Integer> seeds = new Stack<>();
 		seeds.push(vertices.get(0).triangles.get(0));
 		int layerDepth = 0;
@@ -1017,8 +1096,8 @@ public class Triangulation {
 	 */
 	public static Set<Integer> peelLayer(
 			Stack<Integer> seeds,
-			List<Triangle> triangles,
-			Set<Edge> fixedEdges,
+			List<IndexTriangle> triangles,
+			Set<IndexEdge> fixedEdges,
 			int layerDepth,
 			List<Integer> triDepths
 	) {
@@ -1027,9 +1106,9 @@ public class Triangulation {
 			int iT = seeds.pop();
 			triDepths.set(iT, layerDepth);
 			behindBoundary.remove(iT);
-			Triangle t = triangles.get(iT);
+			IndexTriangle t = triangles.get(iT);
 			for(int i = 0; i < 3; ++i) {
-				Edge opEdge = new Edge(t.vertices.get(CDTUtils.ccw(i)), t.vertices.get(CDTUtils.cw(i)));
+				IndexEdge opEdge = new IndexEdge(t.vertices.get(CDTUtils.ccw(i)), t.vertices.get(CDTUtils.cw(i)));
 				int iN = t.neighbors.get(CDTUtils.opoNbr(i));
 				if(iN == NO_NEIGHBOR || triDepths.get(iN) <= layerDepth) {
 					continue;

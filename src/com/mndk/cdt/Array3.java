@@ -229,6 +229,13 @@ public class Array3<T> implements List<T> {
 	
 	
 	
+	@Override
+	public String toString() {
+		return "[" + e1 + ", " + e2 + ", " + e3 + "]";
+	}
+	
+	
+	
 	private static class Array3Iterator<T> implements Iterator<T> {
 		
 		protected int i;

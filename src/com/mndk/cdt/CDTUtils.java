@@ -55,7 +55,20 @@ public class CDTUtils {
 			final V2d v1,
 			final V2d v2,
 			final V2d v3
-	);
+	) {
+		double dx = v1.x - p.x;
+		double dy = v1.y - p.y;
+		double ex = v2.x - p.x;
+		double ey = v2.y - p.y;
+		double fx = v3.x - p.x;
+		double fy = v3.y - p.y;
+		
+		return (
+		        (dx*dx + dy*dy) * (ex*fy - fx*ey) -
+		        (ex*ex + ey*ey) * (dx*fy - fx*dy) +
+		        (fx*fx + fy*fy) * (dx*ey - ex*dy)
+		    ) > 0;
+	}
 	
 	
 	
@@ -77,7 +90,20 @@ public class CDTUtils {
 	 * @param v2
 	 * @return
 	 */
-	public static PtLineLocation locatePointLine(V2d p, V2d v1, V2d v2);
+	public static PtLineLocation locatePointLine(V2d p, V2d v1, V2d v2) {
+		
+		double dx = v2.x - v1.x;
+		double dy = v2.y - v1.y;
+		double ex = p.x - v1.x;
+		double ey = p.y - v1.y;
+		
+		double product = dx * ey - dy * ex;
+		
+		if(product < 0) return PtLineLocation.RIGHT;
+		if(product > 0) return PtLineLocation.LEFT;
+		return PtLineLocation.ON_LINE;
+		
+	}
 	
 	
 	
@@ -89,7 +115,35 @@ public class CDTUtils {
 	 * @param v3
 	 * @return
 	 */
-	public static PtTriLocation locatePointTriangle(V2d p, V2d v1, V2d v2, V2d v3);
+	public static PtTriLocation locatePointTriangle(V2d p, V2d v1, V2d v2, V2d v3) {
+		PtTriLocation result = PtTriLocation.INSIDE;
+		
+		PtLineLocation edgeCheck = locatePointLine(p, v1, v2);
+		if(edgeCheck == PtLineLocation.RIGHT) {
+	        return PtTriLocation.OUTSIDE;
+		}
+	    if(edgeCheck == PtLineLocation.ON_LINE) {
+	        result = PtTriLocation.ON_EDGE1;
+	    }
+	    
+	    edgeCheck = locatePointLine(p, v2, v3);
+	    if(edgeCheck == PtLineLocation.RIGHT) {
+	        return PtTriLocation.OUTSIDE;
+	    }
+	    if(edgeCheck == PtLineLocation.ON_LINE) {
+	        result = PtTriLocation.ON_EDGE2;
+	    }
+	    
+	    edgeCheck = locatePointLine(p, v3, v1);
+	    if(edgeCheck == PtLineLocation.RIGHT) {
+	        return PtTriLocation.OUTSIDE;
+	    }
+	    if(edgeCheck == PtLineLocation.ON_LINE) {
+	        result = PtTriLocation.ON_EDGE3;
+	    }
+	    
+	    return result;
+	}
 	
 	
 	
@@ -99,7 +153,7 @@ public class CDTUtils {
 	 * @param iTnbr Index of a triangle neighbor
 	 * @return
 	 */
-	public static int neighborIndex(Triangle tri, int iTnbr) {
+	public static int neighborIndex(IndexTriangle tri, int iTnbr) {
 		if(iTnbr == tri.neighbors.e1) return 0;
 		if(iTnbr == tri.neighbors.e2) return 1;
 		if(iTnbr == tri.neighbors.e3) return 2;
@@ -138,12 +192,8 @@ public class CDTUtils {
 	 * @param iVert Index of a vertex
 	 * @return
 	 */
-	public static int opposedTriangle(Triangle tri, int iVert) {
-		int index = opposedTriangleIndex(tri, iVert);
-		if(index == 0) return tri.neighbors.e1;
-		if(index == 1) return tri.neighbors.e2;
-		if(index == 2) return tri.neighbors.e3;
-		throw new ArrayIndexOutOfBoundsException(index);
+	public static int opposedTriangle(IndexTriangle tri, int iVert) {
+		return tri.neighbors.get(opposedTriangleIndex(tri, iVert));
 	}
 	
 	
@@ -154,11 +204,11 @@ public class CDTUtils {
 	 * @param iVert Index of a vertex
 	 * @return
 	 */
-	public static int opposedTriangleIndex(Triangle tri, int iVert) {
+	public static int opposedTriangleIndex(IndexTriangle tri, int iVert) {
 		if(iVert == tri.vertices.e1) return opoNbr(0);
 		if(iVert == tri.vertices.e2) return opoNbr(1);
 		if(iVert == tri.vertices.e3) return opoNbr(2);
-		throw new RuntimeException("Could not find opposed triangle index");
+		throw new RuntimeException("Could not find opposed triangle index (triangle: " + tri.vertices + ", vertex: " + iVert + ")");
 	}
 	
 	
@@ -170,7 +220,7 @@ public class CDTUtils {
 	 * @param iVedge2
 	 * @return
 	 */
-	public static int opposedTriangleIndex(Triangle tri, int iVedge1, int iVedge2) {
+	public static int opposedTriangleIndex(IndexTriangle tri, int iVedge1, int iVedge2) {
 		if(iVedge1 != tri.vertices.e1 && iVedge2 != tri.vertices.e1) return opoNbr(0);
 		if(iVedge1 != tri.vertices.e2 && iVedge2 != tri.vertices.e2) return opoNbr(1);
 		if(iVedge1 != tri.vertices.e3 && iVedge2 != tri.vertices.e3) return opoNbr(2);
@@ -185,12 +235,8 @@ public class CDTUtils {
 	 * @param iTopo Index of opposed triangle
 	 * @return
 	 */
-	public static int opposedVertex(Triangle tri, int iTopo) {
-		int index = opposedVertexIndex(tri, iTopo);
-		if(index == 0) return tri.vertices.e1;
-		if(index == 1) return tri.vertices.e2;
-		if(index == 2) return tri.vertices.e3;
-		throw new ArrayIndexOutOfBoundsException(index);
+	public static int opposedVertex(IndexTriangle tri, int iTopo) {
+		return tri.vertices.get(opposedVertexIndex(tri, iTopo));
 	}
 	
 	
@@ -201,10 +247,10 @@ public class CDTUtils {
 	 * @param iTopo Index of opposed triangle
 	 * @return
 	 */
-	public static int opposedVertexIndex(Triangle tri, int iTopo) {
-		if(iTopo == tri.vertices.e1) return opoVrt(0);
-		if(iTopo == tri.vertices.e2) return opoVrt(1);
-		if(iTopo == tri.vertices.e3) return opoVrt(2);
+	public static int opposedVertexIndex(IndexTriangle tri, int iTopo) {
+		if(iTopo == tri.neighbors.e1) return opoVrt(0);
+		if(iTopo == tri.neighbors.e2) return opoVrt(1);
+		if(iTopo == tri.neighbors.e3) return opoVrt(2);
 		throw new RuntimeException("Could not find opposed vertex index");
 	}
 	
@@ -216,7 +262,7 @@ public class CDTUtils {
 	 * @param iV Index of a vertex
 	 * @return
 	 */
-	public static int vertexIndex(Triangle tri, int iV) {
+	public static int vertexIndex(IndexTriangle tri, int iV) {
 		if(iV == tri.vertices.e1) return 0;
 		if(iV == tri.vertices.e2) return 1;
 		if(iV == tri.vertices.e3) return 2;
@@ -233,5 +279,11 @@ public class CDTUtils {
 	 */
 	public static boolean verticesShareEdge(Vertex a, Vertex b) {
 		List<Integer> aTris = a.triangles, bTris = b.triangles;
+		for(int it : aTris) {
+			if(bTris.contains(it)) {
+				return true;
+			}
+		}
+		return false;
 	}
 }
